@@ -17,7 +17,7 @@ const sendRPCMessage = (
       correlationId,
       replyTo: config.replyToQueueName,
     });
-    console.log(`Command sent. ${message}`);
+    console.log(`[cmd-sender] Command sent. Waiting for response.`);
   });
 
 (async () => {
@@ -25,6 +25,8 @@ const sendRPCMessage = (
   const channel = await connection.createChannel();
   responseEmitter.setMaxListeners(0);
 
+  console.log(`[cmd-sender] Connected to amqp broker.`);
+  console.log(`[cmd-sender] Consuming reply-to queue.`);
   await channel.consume(
     config.replyToQueueName,
     (msg) => {
@@ -47,5 +49,5 @@ const sendRPCMessage = (
     config.mainQueueName
   );
 
-  console.log(`Command response: ${response}`);
+  console.log(`[cmd-sender] Received the command response: ${response}`);
 })();
