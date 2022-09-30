@@ -4,8 +4,8 @@
   "main": "./dist/main.js",
   "types": "./dist/main.d.ts",
   "scripts": {
-    "start:server": "ts-node src/server.ts",
-    "start:client": "ts-node src/client.ts"
+    "start:server": "ts-node src/cmd-handler.ts",
+    "start:client": "ts-node src/cmd-sender.ts"
   },
   "dependencies": {
     "amqplib": "^0.10.0",
