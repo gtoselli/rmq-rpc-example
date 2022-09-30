@@ -2,31 +2,47 @@ import amqplib from "amqplib";
 import { config } from "./_config";
 import { v4 as uuid } from "uuid";
 
-(async () => {
-  const connection = await amqplib.connect(config.amqpServerUri);
-  const channel = await connection.createChannel();
-  await channel.assertQueue(config.mainQueueName);
+let amqpConnection: amqplib.Connection;
+let amqpConnectionChannel: amqplib.Channel;
 
+const setupAmqpConnection = async () => {
+  amqpConnection = await amqplib.connect(config.amqpServerUri);
+  amqpConnectionChannel = await amqpConnection.createChannel();
+  await amqpConnectionChannel.assertQueue(config.mainQueueName);
   console.log(`[cmd-handler] Connected to amqp broker.`);
+};
 
-  await channel.consume(config.mainQueueName, async (msg) => {
-    if (!msg) return;
-    const msgContent = JSON.parse(msg.content.toString("utf8"));
+const handleCommand = async () => {
+  await new Promise((resolve) => setTimeout(resolve, 2000));
+  return {
+    cmdId: uuid(),
+    shippingId: uuid(),
+  };
+};
+
+const sendResultToSender = async (originalMsg: amqplib.Message, cmdResult: unknown) => {
+  amqpConnectionChannel.sendToQueue(
+    originalMsg.properties.replyTo,
+    Buffer.from(JSON.stringify(cmdResult)),
+    {
+      correlationId: originalMsg.properties.correlationId,
+    }
+  );
+  console.log(`[cmd-handler] Command handled. Response sent: ${JSON.stringify(cmdResult)}`);
+  await amqpConnectionChannel.ack(originalMsg);
+};
+
+(async () => {
+  await setupAmqpConnection();
+
+  await amqpConnectionChannel!.consume(config.mainQueueName, async (cmdRequestMsg) => {
+    if (!cmdRequestMsg) return;
+    const msgContent = JSON.parse(cmdRequestMsg.content.toString("utf8"));
 
     console.log(`[cmd-handler] Command received. ${JSON.stringify(msgContent)}. Handling.`);
 
-    // Fake command handling
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    const cmdResult = {
-      cmdId: uuid(),
-      shippingId: uuid(),
-    };
+    const cmdResult = await handleCommand();
 
-    channel.sendToQueue(msg.properties.replyTo, Buffer.from(JSON.stringify(cmdResult)), {
-      correlationId: msg.properties.correlationId,
-    });
-    console.log(`[cmd-handler] Command handled. Response sent: ${JSON.stringify(cmdResult)}`);
-
-    await channel.ack(msg);
+    await sendResultToSender(cmdRequestMsg, cmdResult);
   });
 })();
